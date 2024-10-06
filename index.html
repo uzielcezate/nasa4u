@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="styles.css">
+    <title>Exploración de Exoplanetas con HWO</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.4.0/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="scripts.js" defer></script>
+    <style>
+        .exoplanet-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            margin-bottom: 40px;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .exoplanet-row {
+            display: grid;
+            grid-template-columns: 1fr;
+            align-items: center;
+            gap: 20px;
+        }
+        .exoplanet-3d {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .exoplanet-card {
+            padding: 20px;
+            background-color: #1e1e1e;
+            color: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Exploración de Exoplanetas con HWO</h1>
+    </header>
+
+    <section id="intro">
+        <p style="text-align: justify;">Los exoplanetas son planetas que orbitan estrellas fuera de nuestro sistema solar. A diferencia de los planetas de nuestro sistema solar, los exoplanetas se encuentran a distancias extremadamente lejanas, orbitando alrededor de otros soles. La búsqueda y el estudio de estos exoplanetas nos ayudan a entender mejor la diversidad de sistemas planetarios en el universo, así como a identificar potenciales lugares donde podría existir vida.<br><br>Este software permite a los usuarios explorar exoplanetas prometedores utilizando datos de telescopios como Kepler y James Webb. Con visualizaciones en 3D y una interfaz interactiva, los usuarios pueden analizar los parámetros más relevantes, como la masa, el radio y la temperatura de los exoplanetas. Además, ofrece la posibilidad de modificar estos parámetros para buscar nuevos candidatos que podrían ser de interés para futuras misiones del Observatorio de Mundos Habitables (HWO).</p>
+    </section>
+
+    <section id="parametros-predefinidos">
+        <h2>Exoplanetas Prometedores</h2>
+        <div id="exoplanetas-prometedores">
+            <!-- Aquí se mostrarán los exoplanetas prometedores con sus modelos en 3D -->
+            <script>
+                axios.get('/exoplanetas')
+                    .then(response => {
+                        const exoplanetas = response.data.slice(0, 10); // Limitar a 10 exoplanetas
+                        const contenedor = document.getElementById('exoplanetas-prometedores');
+                        contenedor.innerHTML = '';
+                        exoplanetas.forEach((exoplaneta, index) => {
+                            const cardContainer = document.createElement('div');
+                            cardContainer.classList.add('exoplanet-container');
+                            
+                            const rowContainer = document.createElement('div');
+                            rowContainer.classList.add('exoplanet-row');
+                            
+                            const visualizationDiv = document.createElement('div');
+                            visualizationDiv.classList.add('exoplanet-3d');
+                            visualizationDiv.id = `visualization-${exoplaneta.pl_name}`;
+                            visualizationDiv.style.width = '400px';
+                            visualizationDiv.style.height = '400px';
+                            
+                            const card = document.createElement('div');
+                            card.classList.add('exoplanet-card');
+                            card.innerHTML = `
+                                <h3>${exoplaneta.pl_name || 'Nombre desconocido'}</h3>
+                                <p>Estrella anfitriona: ${exoplaneta.hostname || 'Desconocido'}</p>
+                                <p>Distancia: ${exoplaneta.sy_dist ? exoplaneta.sy_dist + ' pc' : 'Desconocido'}</p>
+                                <p>Radio: ${exoplaneta.pl_rade ? exoplaneta.pl_rade + ' R<sub>e</sub>' : 'Desconocido'}</p>
+                                <p>Iluminación: ${exoplaneta.st_lum || 'Desconocido'}</p>
+                            `;
+                            
+                            rowContainer.appendChild(visualizationDiv);
+                            rowContainer.appendChild(card);
+                            cardContainer.appendChild(rowContainer);
+                            contenedor.appendChild(cardContainer);
+
+                            // Crear la visualización 3D del planeta con Three.js
+                            setTimeout(() => { create3DVisualization(`visualization-${exoplaneta.pl_name}`, index); }, 500); // Retraso para asegurar la carga correcta
+                        });
+                    })
+                    .catch(error => console.error('Error al obtener exoplanetas prometedores:', error));
+
+                function create3DVisualization(containerId, index) {
+                    const container = document.getElementById(containerId);
+                    const scene = new THREE.Scene();
+                    const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+                    const renderer = new THREE.WebGLRenderer({ antialias: true });
+                    renderer.setSize(container.clientWidth, container.clientHeight);
+                    container.appendChild(renderer.domElement);
+
+                    const geometry = new THREE.SphereGeometry(1, 32, 32);
+                    const colors = [0xffcc99, 0x99ccff, 0xff9999, 0x99ff99]; // Colores básicos para los planetas
+                    const material = new THREE.MeshStandardMaterial({ color: colors[index % colors.length], roughness: 0.8, metalness: 0.3 });
+                    const planet = new THREE.Mesh(geometry, material);
+                    scene.add(planet);
+
+                    // Añadir puntos de color blanco pegados al planeta para visualizar el giro
+                    for (let i = 0; i < 50; i++) {
+                        const pointGeometry = new THREE.SphereGeometry(0.02, 8, 8);
+                        const pointMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                        const point = new THREE.Mesh(pointGeometry, pointMaterial);
+
+                        // Ubicación aleatoria en la superficie del planeta
+                        const u = Math.random();
+                        const v = Math.random();
+                        const theta = 2 * Math.PI * u;
+                        const phi = Math.acos(2 * v - 1);
+                        const x = Math.sin(phi) * Math.cos(theta);
+                        const y = Math.sin(phi) * Math.sin(theta);
+                        const z = Math.cos(phi);
+
+                        point.position.set(x, y, z).multiplyScalar(1.05);
+                        planet.add(point);
+                    }
+
+                    // Añadir estrellas alrededor del planeta
+                    const starsGeometry = new THREE.BufferGeometry();
+                    const starsMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.01 });
+                    const starVertices = [];
+                    for (let i = 0; i < 1000; i++) {
+                        const x = (Math.random() - 0.5) * 50;
+                        const y = (Math.random() - 0.5) * 50;
+                        const z = (Math.random() - 0.5) * 50;
+                        starVertices.push(x, y, z);
+                    }
+                    starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
+                    const stars = new THREE.Points(starsGeometry, starsMaterial);
+                    scene.add(stars);
+
+                    const hemisphereLight = new THREE.HemisphereLight(0xffffbb, 0x080820, 1.8);
+                    scene.add(hemisphereLight);
+
+                    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+                    directionalLight.position.set(5, 5, 5).normalize();
+                    scene.add(directionalLight);
+
+                    camera.position.z = 3;
+
+                    function animate() {
+                        requestAnimationFrame(animate);
+                        planet.rotation.y += 0.01;
+                        renderer.render(scene, camera);
+                    }
+                    animate();
+
+                    // Ajustar el renderizador al contenedor después de agregarlo al DOM
+                    window.addEventListener('resize', () => {
+                        const width = container.clientWidth;
+                        const height = container.clientHeight;
+                        renderer.setSize(width, height);
+                        camera.aspect = width / height;
+                        camera.updateProjectionMatrix();
+                    });
+                }
+            </script>
+        </div>
+    </section>
+
+
+    <section id="filtros-personalizados">
+        <h2>Buscar Otros Exoplanetas Candidatos</h2>
+        <div id="slider-form">
+            <label for="distancia">Distancia a su estrella (pc):</label>
+            <input type="text" id="distancia" name="distancia">
+
+            <label for="min_radio">Radio Mínimo (R<sub>e</sub>):</label>
+            <input type="text" id="min_radio" name="min_radio">
+
+            <label for="max_radio">Radio Máximo (R<sub>e</sub>):</label>
+            <input type="text" id="max_radio" name="max_radio">
+
+            <label for="min_lum">Iluminación Mínima:</label>
+            <input type="text" id="min_lum" name="min_lum">
+
+            <label for="max_lum">Iluminación Máxima:</label>
+            <input type="text" id="max_lum" name="max_lum">
+
+            <button type="button" id="filtrar-btn">Buscar Exoplanetas</button>
+        </div>
+    </section>
+
+    <section id="resultados-filtros">
+        <h2>Resultados de Búsqueda</h2>
+        <div id="filtro-resultados">
+            <!-- Aquí se mostrarán los exoplanetas filtrados con sus modelos en 3D -->
+            <script>
+                document.getElementById('filtrar-btn').addEventListener('click', function() {
+                    const distancia = document.getElementById('distancia').value;
+                    const minRadio = document.getElementById('min_radio').value;
+                    const maxRadio = document.getElementById('max_radio').value;
+                    const minLum = document.getElementById('min_lum').value;
+                    const maxLum = document.getElementById('max_lum').value;
+
+                    const params = new URLSearchParams();
+                    if (distancia) params.append('distancia', distancia);
+                    if (minRadio) params.append('min_radio', minRadio);
+                    if (maxRadio) params.append('max_radio', maxRadio);
+                    if (minLum) params.append('min_lum', minLum);
+                    if (maxLum) params.append('max_lum', maxLum);
+
+                    axios.get(`/filtrar?${params.toString()}`)
+                        .then(response => {
+                            const exoplanetas = response.data.slice(0, 10); // Limitar a 10 exoplanetas
+                            const contenedor = document.getElementById('filtro-resultados');
+                            contenedor.innerHTML = '';
+                            exoplanetas.forEach(exoplaneta => {
+                                const cardContainer = document.createElement('div');
+                                cardContainer.classList.add('exoplanet-container');
+
+                                const visualizationDiv = document.createElement('div');
+                                visualizationDiv.classList.add('exoplanet-3d');
+                                visualizationDiv.id = `filtered-visualization-${exoplaneta.pl_name}`;
+                                visualizationDiv.style.width = '100%';
+                                visualizationDiv.style.height = '400px';
+
+                                const card = document.createElement('div');
+                                card.classList.add('exoplanet-card');
+                                card.innerHTML = `
+                                    <h3>${exoplaneta.pl_name || 'Nombre desconocido'}</h3>
+                                    <p>Estrella anfitriona: ${exoplaneta.hostname || 'Desconocido'}</p>
+                                    <p>Distancia: ${exoplaneta.sy_dist ? exoplaneta.sy_dist + ' pc' : 'Desconocido'}</p>
+                                    <p>Radio: ${exoplaneta.pl_rade ? exoplaneta.pl_rade + ' R<sub>e</sub>' : 'Desconocido'}</p>
+                                    <p>Iluminación: ${exoplaneta.st_lum || 'Desconocido'}</p>
+                                `;
+
+                                cardContainer.appendChild(visualizationDiv);
+                                cardContainer.appendChild(card);
+                                contenedor.appendChild(cardContainer);
+
+                                // Crear la visualización 3D del planeta con Three.js
+                                create3DVisualization(`filtered-visualization-${exoplaneta.pl_name}`);
+                            });
+                        })
+                        .catch(error => console.error('Error al filtrar exoplanetas:', error));
+                });
+            </script>
+        </div>
+    </section>
+</body>
+</html>
+
+<style>
+    /* Estilos CSS para el tema oscuro de la página de exploración de exoplanetas */
+    body {
+        background-color: #121212;
+        color: #e0e0e0;
+        font-family: Arial, Helvetica, sans-serif;
+        margin: 0;
+        padding: 0;
+    }
+    
+    header {
+        background-color: #1e1e1e;
+        padding: 20px;
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    }
+    
+    header h1 {
+        margin: 0;
+        color: #ffffff;
+        font-size: 2rem;
+    }
+    
+    #intro {
+        padding: 20px;
+        text-align: center;
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    
+    #parametros-predefinidos, #filtros-personalizados, #resultados-filtros {
+        margin: 20px;
+        padding: 20px;
+        background-color: #1e1e1e;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5);
+    }
+    
+    h2 {
+        color: #ffd700;
+        font-size: 1.5rem;
+        margin-bottom: 15px;
+    }
+    
+    #exoplanetas-prometedores {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 15px;
+    }
+    
+    #exoplanetas-prometedores .exoplanet-card,
+    #filtro-resultados .exoplanet-card {
+        background-color: #2a2a2a;
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5);
+        text-align: center;
+    }
+    
+    #filtros-personalizados label {
+        display: block;
+        margin-top: 10px;
+        font-size: 1rem;
+        color: #b0b0b0;
+    }
+    
+    #filtros-personalizados input {
+        width: 100%;
+        padding: 8px;
+        margin-top: 5px;
+        border-radius: 5px;
+        border: 1px solid #333;
+        background-color: #2a2a2a;
+        color: #ffffff;
+    }
+    
+    #filtrar-btn {
+        margin-top: 15px;
+        padding: 10px 20px;
+        border: none;
+        background-color: #ffd700;
+        color: #121212;
+        font-weight: bold;
+        cursor: pointer;
+        border-radius: 5px;
+        transition: background-color 0.3s ease;
+    }
+    
+    #filtrar-btn:hover {
+        background-color: #ffc107;
+    }
+    
+    #filtro-resultados {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 15px;
+        margin-top: 20px;
+    }
+    
+    .exoplanet-card h3 {
+        margin: 0;
+        color: #ffd700;
+        font-size: 1.2rem;
+    }
+    
+    .exoplanet-card p {
+        margin: 5px 0;
+        font-size: 0.9rem;
+        color: #e0e0e0;
+    }
+    
+    @media (max-width: 600px) {
+        #filtros-personalizados {
+            padding: 10px;
+        }
+    
+        #filtrar-btn {
+            width: 100%;
+        }
+    }
+    </style>
+    
